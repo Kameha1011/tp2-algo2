@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	TDACola "tdas/cola"
 	ABB "tdas/diccionario"
 	"time"
 	Reportes "tp2/DictReportes"
@@ -26,10 +27,39 @@ type IPs struct {
 	campos [4]int
 }
 
-func radixSort(arr []IPs) {
-	countingSort := 
+func countingSort(arr []IPs, campo int) []IPs {
+	colas := make([]TDACola.Cola[IPs], 255)
+	for i := range colas {
+		colas[i] = TDACola.CrearColaEnlazada[IPs]()
+	}
+
+	for _, ip := range arr {
+		colas[ip.campos[campo]].Encolar(ip)
+	}
+
+	ordenadas := make([]IPs, len(arr))
+	indice := 0
+	for _, cola := range colas {
+		for !cola.EstaVacia() {
+			ordenadas[indice] = cola.Desencolar()
+			indice++
+		}
+	}
+
+	return ordenadas
 }
 
+func radixSort(arr []IPs) {
+	for i := 3; i >= 0; i-- {
+		arr = countingSort(arr, i)
+	}
+}
+
+func imprimirIPs(ip []IPs) {
+	for _, ip := range ip {
+		fmt.Println(ip.campos[0], ".", ip.campos[1], ".", ip.campos[2], ".", ip.campos[3])
+	}
+}
 
 func agregarArchivo(ruta string, urls []string, visitantes ABB.DiccionarioOrdenado[IPs, string]) {
 	archivo := abrirArchivo(ruta)
@@ -42,6 +72,8 @@ func agregarArchivo(ruta string, urls []string, visitantes ABB.DiccionarioOrdena
 	}
 
 	radixSort(dosDetectados)
+
+	imprimirIPs(dosDetectados)
 
 }
 
