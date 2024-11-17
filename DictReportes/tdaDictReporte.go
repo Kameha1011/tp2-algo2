@@ -26,9 +26,30 @@ func CrearDiccionarioReportes() DiccionarioReportes {
 }
 
 func (dicc *DictReporte) Verificar(ip string, tiempo time.Time) bool {
+	t := time.Time{}
 	if dicc.hash.Pertenece(ip) {
 		valor := dicc.hash.Obtener(ip)
-		if tiempo != valor.tiempo_0 && tiempo != valor.tiempo_1 {
+		if valor.tiempo_0 == tiempo {
+			valor.cant_0++
+			dicc.hash.Guardar(ip, valor)
+			if valor.cant_0 == 5 {
+				return true
+			}
+		} else if valor.tiempo_1 == tiempo {
+			valor.cant_1++
+			dicc.hash.Guardar(ip, valor)
+			if valor.cant_1 == 5 || (valor.cant_1+valor.cant_0 >= 5 && valor.tiempo_1.Sub(valor.tiempo_0).Abs().Seconds() < 2) {
+				return true
+			}
+		} else if valor.tiempo_1 == t {
+			valor.tiempo_1 = tiempo
+			valor.cant_1 = 1
+			if valor.cant_0+valor.cant_1 >= 5 && valor.tiempo_1.Sub(valor.tiempo_0).Abs().Seconds() < 2 {
+				return true
+			}
+			dicc.hash.Guardar(ip, valor)
+			return false
+		} else {
 			valor.tiempo_0 = valor.tiempo_1
 			valor.cant_0 = valor.cant_1
 			valor.tiempo_1 = tiempo
@@ -36,23 +57,12 @@ func (dicc *DictReporte) Verificar(ip string, tiempo time.Time) bool {
 			dicc.hash.Guardar(ip, valor)
 			return false
 		}
-		if valor.tiempo_0 == tiempo {
-			valor.cant_0++
-			dicc.hash.Guardar(ip, valor)
-			if valor.cant_0 == 5 {
-				return true
-			}
-		} else {
-			valor.cant_1++
-			dicc.hash.Guardar(ip, valor)
-			if valor.cant_1 == 5 || (valor.cant_1+valor.cant_0 >= 5 && valor.tiempo_1.Sub(valor.tiempo_0).Seconds() <= 2) {
-				return true
-			}
-		}
 	} else {
 		valor := new(valor)
 		valor.cant_0 = 1
 		valor.tiempo_0 = tiempo
+		valor.cant_1 = 0
+		valor.tiempo_1 = time.Time{}
 		dicc.hash.Guardar(ip, *valor)
 	}
 	return false

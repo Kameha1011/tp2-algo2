@@ -7,7 +7,8 @@ import (
 	"strconv"
 	"strings"
 	TDACola "tdas/cola"
-	ABB "tdas/diccionario"
+	TDAColaPrioridad "tdas/cola_prioridad"
+	Dict "tdas/diccionario"
 	"time"
 	Reportes "tp2/DictReportes"
 )
@@ -28,7 +29,7 @@ type IPs struct {
 }
 
 func countingSort(arr []IPs, campo int) []IPs {
-	colas := make([]TDACola.Cola[IPs], 255)
+	colas := make([]TDACola.Cola[IPs], 256)
 	for i := range colas {
 		colas[i] = TDACola.CrearColaEnlazada[IPs]()
 	}
@@ -49,31 +50,42 @@ func countingSort(arr []IPs, campo int) []IPs {
 	return ordenadas
 }
 
-func radixSort(arr []IPs) {
+func radixSort(arr []IPs) []IPs {
 	for i := 3; i >= 0; i-- {
 		arr = countingSort(arr, i)
 	}
+	return arr
 }
 
 func imprimirIPs(ip []IPs) {
 	for _, ip := range ip {
-		fmt.Println(ip.campos[0], ".", ip.campos[1], ".", ip.campos[2], ".", ip.campos[3])
+		fmt.Printf("DoS: %d.%d.%d.%d\n", ip.campos[0], ip.campos[1], ip.campos[2], ip.campos[3])
 	}
 }
 
-func agregarArchivo(ruta string, urls []string, visitantes ABB.DiccionarioOrdenado[IPs, string]) {
+func hashAArray(hash Dict.Diccionario[string, bool]) []IPs {
+	arr := make([]IPs, 0)
+	for iter := hash.Iterador(); iter.HaySiguiente(); iter.Siguiente() {
+		clave, _ := iter.VerActual()
+		ip := parsearIp(clave)
+		arr = append(arr, ip)
+	}
+	return arr
+}
+
+func agregarArchivo(ruta string, urls Dict.Diccionario[string, int], visitantes Dict.DiccionarioOrdenado[IPs, string]) {
 	archivo := abrirArchivo(ruta)
 	scannerArchivo := bufio.NewScanner(archivo)
-	dosDetectados := make([]IPs, 0)
+	dosDetectados := Dict.CrearHash[string, bool]()
 	dictReportes := Reportes.CrearDiccionarioReportes()
 
 	for scannerArchivo.Scan() {
 		procesarLinea(scannerArchivo.Text(), dosDetectados, dictReportes, urls, visitantes)
 	}
 
-	radixSort(dosDetectados)
+	ipsOrdenadas := radixSort(hashAArray(dosDetectados))
 
-	imprimirIPs(dosDetectados)
+	imprimirIPs(ipsOrdenadas)
 
 }
 
@@ -87,11 +99,10 @@ func parsearIp(ip string) IPs {
 	return ipParseada
 }
 
-func procesarLinea(linea string, dosDetectados []IPs, dictReportes Reportes.DiccionarioReportes, urls []string, visitantes ABB.DiccionarioOrdenado[IPs, string]) {
+func procesarLinea(linea string, dosDetectados Dict.Diccionario[string, bool], dictReportes Reportes.DiccionarioReportes, urls Dict.Diccionario[string, int], visitantes Dict.DiccionarioOrdenado[IPs, string]) {
 	elementos := splitLinea(linea)
 	ip := elementos[IP]
 	tiempo, err := time.Parse(LAYOUT, elementos[TIEMPO])
-
 	if err != nil {
 		panic(err)
 	}
@@ -99,12 +110,18 @@ func procesarLinea(linea string, dosDetectados []IPs, dictReportes Reportes.Dicc
 	ipParseada := parsearIp(ip)
 
 	if dictReportes.Verificar(ip, tiempo) {
-		dosDetectados = append(dosDetectados, ipParseada)
+		if !dosDetectados.Pertenece(ip) {
+			dosDetectados.Guardar(ip, true)
+		}
 	}
 
 	visitantes.Guardar(ipParseada, ip)
 
-	urls = append(urls, elementos[URL])
+	if urls.Pertenece(elementos[URL]) {
+		urls.Guardar(elementos[URL], urls.Obtener(elementos[URL])+1)
+	} else {
+		urls.Guardar(elementos[URL], 1)
+	}
 
 }
 
@@ -134,19 +151,84 @@ var funcionComparacion = func(a, b IPs) int {
 	return 0
 }
 
+type elementoHeap struct {
+	url  string
+	cant int
+}
+
+var funcionComparacionHeap = func(a, b elementoHeap) int {
+	return a.cant - b.cant
+}
+
+func arrADict(urls Dict.Diccionario[string, int]) []elementoHeap {
+	arr := make([]elementoHeap, 0)
+	for iter := urls.Iterador(); iter.HaySiguiente(); iter.Siguiente() {
+		clave, valor := iter.VerActual()
+		arr = append(arr, elementoHeap{url: clave, cant: valor})
+	}
+	return arr
+}
+
+func verMasVisitados(cant_visitados string, urls Dict.Diccionario[string, int]) {
+	arr := arrADict(urls)
+	k, _ := strconv.Atoi(cant_visitados)
+	heap := TDAColaPrioridad.CrearHeapArr(arr, funcionComparacionHeap)
+	if k > heap.Cantidad() {
+		k = heap.Cantidad()
+	}
+	for i := 0; i < k; i++ {
+		elemento := heap.Desencolar()
+		fmt.Printf("\t%s - %d\n", elemento.url, elemento.cant)
+	}
+
+}
+
+func verVisitantes(inicio string, fin string, visitantes Dict.DiccionarioOrdenado[IPs, string]) {
+	comenzar := parsearIp(inicio)
+	final := parsearIp(fin)
+	iterRango := visitantes.IteradorRango(&comenzar, &final)
+	for iterRango.HaySiguiente() {
+		_, ip := iterRango.VerActual()
+		fmt.Printf("\t%s\n", ip)
+		iterRango.Siguiente()
+	}
+}
+
 func main() {
-	urls := make([]string, 0)
-	visitantes := ABB.CrearABB[IPs, string](funcionComparacion)
+	urls := Dict.CrearHash[string, int]()
+	visitantes := Dict.CrearABB[IPs, string](funcionComparacion)
 	scannerStdin := bufio.NewScanner(os.Stdin)
 	for scannerStdin.Scan() {
 		args := splitStdin(scannerStdin.Text())
 		switch args[0] {
 		case AGREGAR_ARCHIVO:
-			agregarArchivo(args[2], urls, visitantes)
+			if len(args) != 2 {
+				fmt.Fprint(os.Stderr, "Error en comando agregar_archivo\n")
+				break
+			}
+			_, err := os.Open(args[1])
+			if err != nil {
+				fmt.Fprint(os.Stderr, "Error en comando agregar_archivo\n")
+				break
+			}
+			agregarArchivo(args[1], urls, visitantes)
+			fmt.Println("OK")
 		case VER_MAS_VISITADOS:
-			verMasVisitados(args[2])
+			if len(args) != 2 {
+				fmt.Fprint(os.Stderr, "Error en comando ver_mas_visitados\n")
+				break
+			}
+			fmt.Println("Sitios más visitados:")
+			verMasVisitados(args[1], urls)
+			fmt.Println("OK")
 		case VER_VISITANTES:
-			verVisitantes(args[2], args[3])
+			if len(args) != 3 {
+				fmt.Fprint(os.Stderr, "Error en comando ver_visitantes\n")
+				break
+			}
+			fmt.Println("Visitantes:")
+			verVisitantes(args[1], args[2], visitantes)
+			fmt.Println("OK")
 		default:
 			fmt.Println("Comando no reconocido")
 		}
