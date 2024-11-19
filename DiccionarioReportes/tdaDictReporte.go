@@ -6,10 +6,9 @@ import (
 )
 
 type valor struct {
-	tiempo_0 time.Time
-	cant_0   int
-	tiempo_1 time.Time
-	cant_1   int
+	tiempo    time.Time
+	cantidad  int
+	intervalo time.Duration
 }
 
 type dictReporte struct {
@@ -24,44 +23,28 @@ func CrearDiccionarioReportes() DiccionarioReportes {
 }
 
 func (dicc *dictReporte) Verificar(ip string, tiempo time.Time) bool {
-	t := time.Time{}
 	if dicc.hash.Pertenece(ip) {
 		valor := dicc.hash.Obtener(ip)
-		if valor.tiempo_0 == tiempo {
-			valor.cant_0++
+		valor.intervalo = tiempo.Sub(valor.tiempo) + valor.intervalo
+		valor.tiempo = tiempo
+
+		if !(valor.intervalo.Seconds() >= 2) {
+			valor.cantidad++
 			dicc.hash.Guardar(ip, valor)
-			if valor.cant_0 == 5 {
-				return true
-			}
-		} else if valor.tiempo_1 == tiempo {
-			valor.cant_1++
-			dicc.hash.Guardar(ip, valor)
-			if valor.cant_1 == 5 || (valor.cant_1+valor.cant_0 >= 5 && valor.tiempo_1.Sub(valor.tiempo_0).Abs().Seconds() < 2) {
-				return true
-			}
-		} else if valor.tiempo_1 == t {
-			valor.tiempo_1 = tiempo
-			valor.cant_1 = 1
-			if valor.cant_0+valor.cant_1 >= 5 && valor.tiempo_1.Sub(valor.tiempo_0).Abs().Seconds() < 2 {
-				return true
-			}
-			dicc.hash.Guardar(ip, valor)
-			return false
-		} else {
-			valor.tiempo_0 = valor.tiempo_1
-			valor.cant_0 = valor.cant_1
-			valor.tiempo_1 = tiempo
-			valor.cant_1 = 1
-			dicc.hash.Guardar(ip, valor)
-			return false
+			return valor.cantidad == 5
 		}
+
+		valor.cantidad = 1
+		valor.intervalo = time.Duration(0)
+		dicc.hash.Guardar(ip, valor)
+
 	} else {
 		valor := new(valor)
-		valor.cant_0 = 1
-		valor.tiempo_0 = tiempo
-		valor.cant_1 = 0
-		valor.tiempo_1 = time.Time{}
+		valor.cantidad = 1
+		valor.tiempo = tiempo
+		valor.intervalo = time.Duration(0)
 		dicc.hash.Guardar(ip, *valor)
 	}
+
 	return false
 }
