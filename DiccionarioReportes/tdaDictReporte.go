@@ -5,18 +5,18 @@ import (
 	"time"
 )
 
-type valor struct {
+type registroIp struct {
 	tiempo    time.Time
 	cantidad  int
 	intervalo time.Duration
 }
 
 type dictReporte struct {
-	hash TDADiccionario.Diccionario[string, valor]
+	hash TDADiccionario.Diccionario[string, registroIp]
 }
 
 func CrearDiccionarioReportes() DiccionarioReportes {
-	hash := TDADiccionario.CrearHash[string, valor]()
+	hash := TDADiccionario.CrearHash[string, registroIp]()
 	dictReportes := new(dictReporte)
 	dictReportes.hash = hash
 	return dictReportes
@@ -24,26 +24,26 @@ func CrearDiccionarioReportes() DiccionarioReportes {
 
 func (dicc *dictReporte) Verificar(ip string, tiempo time.Time) bool {
 	if dicc.hash.Pertenece(ip) {
-		valor := dicc.hash.Obtener(ip)
-		valor.intervalo = tiempo.Sub(valor.tiempo) + valor.intervalo
-		valor.tiempo = tiempo
+		registroIp := dicc.hash.Obtener(ip)
+		registroIp.intervalo = tiempo.Sub(registroIp.tiempo) + registroIp.intervalo
+		registroIp.tiempo = tiempo
 
-		if !(valor.intervalo.Seconds() >= 2) {
-			valor.cantidad++
-			dicc.hash.Guardar(ip, valor)
-			return valor.cantidad == 5
+		if !(registroIp.intervalo.Seconds() >= 2) {
+			registroIp.cantidad++
+			dicc.hash.Guardar(ip, registroIp)
+			return registroIp.cantidad == 5
 		}
 
-		valor.cantidad = 1
-		valor.intervalo = time.Duration(0)
-		dicc.hash.Guardar(ip, valor)
+		registroIp.cantidad = 1
+		registroIp.intervalo = time.Duration(0)
+		dicc.hash.Guardar(ip, registroIp)
 
 	} else {
-		valor := new(valor)
-		valor.cantidad = 1
-		valor.tiempo = tiempo
-		valor.intervalo = time.Duration(0)
-		dicc.hash.Guardar(ip, *valor)
+		registroIp := new(registroIp)
+		registroIp.cantidad = 1
+		registroIp.tiempo = tiempo
+		registroIp.intervalo = time.Duration(0)
+		dicc.hash.Guardar(ip, *registroIp)
 	}
 
 	return false
