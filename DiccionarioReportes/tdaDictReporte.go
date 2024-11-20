@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+const (
+	_CANTIDAD_SOSPECHA = 5
+	_INTERVALO_SOSPECHA = 2
+)
+
 type registroIp struct {
 	tiempo    time.Time
 	cantidad  int
@@ -28,10 +33,10 @@ func (dicc *dictReporte) Verificar(ip string, tiempo time.Time) bool {
 		registroIp.intervalo = tiempo.Sub(registroIp.tiempo) + registroIp.intervalo
 		registroIp.tiempo = tiempo
 
-		if !(registroIp.intervalo.Seconds() >= 2) {
+		if !(registroIp.intervalo.Seconds() >= _INTERVALO_SOSPECHA) {
 			registroIp.cantidad++
 			dicc.hash.Guardar(ip, registroIp)
-			return registroIp.cantidad == 5
+			return registroIp.cantidad == _CANTIDAD_SOSPECHA
 		}
 
 		registroIp.cantidad = 1
